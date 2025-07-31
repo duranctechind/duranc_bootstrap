@@ -1,0 +1,17 @@
+#version: "3"
+services:
+  installer:
+    image: index.docker.io/durancai/local-http-installer-web-prod:latest
+    container_name: duranc_installer_web
+    ports:
+      - 5000:5000
+    restart: unless-stopped
+    volumes:
+      - /app/output:/app/output
+    environment:
+      - HOST_IP=${HOST_IP}
+      - OUTPUT_BASE=/app/output
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
