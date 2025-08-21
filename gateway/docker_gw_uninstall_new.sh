@@ -48,6 +48,9 @@ else
 		  volumeRemove="$dockerCMD volume rm $volume"
 		  eval $volumeRemove
 		done
+		
+		#Comment the line in crontab (Future Use)
+		#sudo sed -e '/docker_gw_uninstall.sh.x/ s/^#*/#/' -i /var/spool/cron/crontabs/root
 	else
 		echo "Date: $dt" > $scriptsDir/containerCheckerr.log
 		echo "Docker command output does not match case" >> $scriptsDir/containerCheckerr.log
