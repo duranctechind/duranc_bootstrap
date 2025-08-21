@@ -1,0 +1,57 @@
+# docker-compose.yml (Compose Spec)
+name: duranc
+
+services:
+  gateway:
+    image: durancai/production-gateway-linux:latest
+    container_name: duranc_gateway
+    restart: unless-stopped
+    shm_size: "4gb"
+    privileged: true
+    network_mode: host
+    command: /usr/bin/supervisord
+
+    environment:
+      TZ: "Asia/Kolkata"
+      DEBUG: "1"
+      LOG_LEVEL: "debug"
+
+    volumes:
+      - gateway:/root/.duranc:rw
+      - motion:/root/.motion:rw
+      - gateway:/persistent:rw
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+      com.centurylinklabs.watchtower.scope: "duranc-scope"
+
+  auto_updater:
+    image: containrrr/watchtower:latest
+    container_name: duranc_watchtower
+    restart: unless-stopped
+    # Uses the *container's* registry credentials (from your mounted DOCKER_CONFIG)
+    command:
+      - --scope=duranc-scope
+      - --debug
+      - --poll-interval=900
+      - --cleanup
+      - --rolling-restart
+      - --include-restarting
+      - --registry-auth
+    environment:
+      TZ: "Asia/Kolkata"
+      DOCKER_CONFIG: /config        # point watchtower to your mounted docker auth dir
+      WATCHTOWER_SCOPE: duranc-scope
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ~/.docker/auth.json:/config/config.json:ro
+
+volumes:
+  gateway:
+  motion:
