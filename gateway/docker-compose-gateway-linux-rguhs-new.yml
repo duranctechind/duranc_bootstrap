@@ -35,19 +35,14 @@ services:
     - --cleanup
     - --rolling-restart
     - --include-restarting
-    - --registry-auth
     environment:
       TZ: Asia/Kolkata
-      DOCKER_CONFIG: /config
       WATCHTOWER_SCOPE: duranc-scope
       WATCHTOWER_DEBUG: 'true'
-      # WATCHTOWER_POLL_INTERVAL: '300'
-      # WATCHTOWER_CLEANUP: 'true'
-      # WATCHTOWER_ROLLING_RESTART: 'true'
-      # WATCHTOWER_INCLUDE_RESTARTING: 'true'
+      DOCKER_CONFIG: /
     volumes:
     - /var/run/docker.sock:/var/run/docker.sock:ro
-    - ~/.docker:/config:ro
+    - ~/.docker/config.json:/config.json:ro
     logging:
       driver: json-file
       options:

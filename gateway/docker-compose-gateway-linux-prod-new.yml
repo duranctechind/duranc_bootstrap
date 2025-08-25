@@ -35,24 +35,26 @@ services:
     image: containrrr/watchtower:latest
     container_name: duranc_watchtower
     restart: unless-stopped
-    # Uses the *container's* registry credentials (from your mounted DOCKER_CONFIG)
     command:
-      - --scope=duranc-scope
-      - --debug
-      - --interval=300
-      - --cleanup
-      - --rolling-restart
-      - --include-restarting
-      - --registry-auth
+    - --scope=duranc-scope
+    - --debug
+    - --interval=300
+    - --cleanup
+    - --rolling-restart
+    - --include-restarting
     environment:
-      TZ: "Asia/Kolkata"
-      DOCKER_CONFIG: /config        # point watchtower to your mounted docker auth dir
+      TZ: Asia/Kolkata
       WATCHTOWER_SCOPE: duranc-scope
       WATCHTOWER_DEBUG: 'true'
+      DOCKER_CONFIG: /
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      #- ~/.docker/auth.json:/config/config.json:ro
-      - ~/.docker:/config:ro
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - ~/.docker/config.json:/config.json:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
 
 volumes:
   gateway:
