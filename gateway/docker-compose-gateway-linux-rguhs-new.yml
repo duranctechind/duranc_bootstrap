@@ -1,0 +1,69 @@
+name: duranc
+services:
+  gateway:
+    image: index.docker.io/durancai/rguhs-gateway-linux:latest
+    container_name: duranc_gateway
+    restart: unless-stopped
+    shm_size: 4gb
+    volumes:
+    - gateway:/root/.duranc:rw
+    - motion:/root/.motion:rw
+    - gateway:/persistent:rw
+    network_mode: host
+    privileged: true
+    logging:
+      options:
+        max-size: 10m
+        max-file: '3'
+    command: /usr/bin/supervisord
+    environment:
+      TZ: Asia/Kolkata
+      DEBUG: '1'
+      LOG_LEVEL: debug
+    labels:
+      com.centurylinklabs.watchtower.enable: 'true'
+      com.centurylinklabs.watchtower.scope: duranc-scope
+
+  auto_updater:
+    image: containrrr/watchtower:latest
+    container_name: duranc_watchtower
+    restart: unless-stopped
+    command:
+    - --scope=duranc-scope
+    - --debug
+    - --poll-interval=300
+    - --cleanup
+    - --rolling-restart
+    - --include-restarting
+    - --registry-auth
+    environment:
+      TZ: Asia/Kolkata
+      DOCKER_CONFIG: /config
+      WATCHTOWER_SCOPE: duranc-scope
+      WATCHTOWER_DEBUG: 'true'
+      WATCHTOWER_POLL_INTERVAL: '300'
+      WATCHTOWER_CLEANUP: 'true'
+      WATCHTOWER_ROLLING_RESTART: 'true'
+      WATCHTOWER_INCLUDE_RESTARTING: 'true'
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - ~/.docker:/config:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+
+volumes:
+  gateway:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /gw-storage/
+  motion:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /motion-storage/
