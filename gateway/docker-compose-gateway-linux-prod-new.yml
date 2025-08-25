@@ -39,7 +39,7 @@ services:
     command:
       - --scope=duranc-scope
       - --debug
-      - --poll-interval=900
+      - --interval=300
       - --cleanup
       - --rolling-restart
       - --include-restarting
@@ -48,9 +48,11 @@ services:
       TZ: "Asia/Kolkata"
       DOCKER_CONFIG: /config        # point watchtower to your mounted docker auth dir
       WATCHTOWER_SCOPE: duranc-scope
+      WATCHTOWER_DEBUG: 'true'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ~/.docker/auth.json:/config/config.json:ro
+      #- ~/.docker/auth.json:/config/config.json:ro
+      - ~/.docker:/config:ro
 
 volumes:
   gateway:
