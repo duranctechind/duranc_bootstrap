@@ -540,9 +540,13 @@ gzip_types text/plain text/css application/json application/javascript text/xml 
 {{- $logEscape := $globals.config.log_format_escape | default "default" | printf "escape=%s" }}
 {{- $logFormat := `[$time_local] $host - $remote_addr - $remote_user "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"  "$upstream_addr" "$http_x_forwarded_for" rt=$request_time up_rt=$upstream_response_time length=$request_length` }}
 
+#log_format vhost {{ $logEscape }} '{{ $logFormat }}';
+#access_log /var/log/nginx/access.log vhost;
+#error_log /var/log/nginx/error.log {{ $globals.Env.ERROR_LOG_LEVEL | default "warn" }};
+
 log_format vhost {{ $logEscape }} '{{ $logFormat }}';
-access_log /var/log/nginx/access.log vhost;
-error_log /var/log/nginx/error.log {{ $globals.Env.ERROR_LOG_LEVEL | default "warn" }};
+access_log /dev/stdout vhost;
+error_log  /dev/stderr {{ $globals.Env.ERROR_LOG_LEVEL | default "warn" }};
 
 {{- if $globals.config.enable_json_logs }}
 JSON Logging enabled (via LOG_JSON env variable)
@@ -568,7 +572,7 @@ JSON Logging enabled (via LOG_JSON env variable)
 {{- end }}
 
 {{- template "ssl_policy" (dict "ssl_policy" $httpContextSslPolicy) }}
-error_log /dev/stderr;
+#error_log /dev/stderr;
 
 {{- if $globals.config.resolvers }}
 resolver {{ $globals.config.resolvers }};
