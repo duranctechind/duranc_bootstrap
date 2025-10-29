@@ -1,0 +1,25 @@
+# docker-compose.installer-web.yml
+# Runs the prebuilt installer-web image that generates gateway bundles on the host.
+# Usage:
+#   export HOST_UID=$(id -u) ; export HOST_GID=$(id -g)
+#   docker compose -f docker-compose.installer-web.yml up -d
+# Then open http://<host>:5080
+
+services:
+  installer-web:
+    image: durancinc/staging-installer-web-gw:latest
+    container_name: duranc_installer_web
+    restart: unless-stopped
+    ports:
+      - "5080:5080"
+    environment:
+      OUTPUT_DIR: /app/output
+      OUTPUT_UID: "${HOST_UID:-1000}"
+      OUTPUT_GID: "${HOST_GID:-1000}"
+    volumes:
+      - ./output:/app/output
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5080/"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
