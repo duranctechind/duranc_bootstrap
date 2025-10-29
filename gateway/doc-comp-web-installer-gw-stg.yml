@@ -7,7 +7,7 @@
 
 services:
   installer-web:
-    image: durancinc/staging-installer-web-gw:latest
+    image: index.docker.io/durancai/staging-installer-web-gw:latest
     container_name: duranc_installer_web
     restart: unless-stopped
     ports:
