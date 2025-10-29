@@ -1,23 +1,21 @@
-# doc-comp-web-installer-gw-stg-fixed.yml
-# Ensures /app/output/gateway-bundle exists & is writable before the web app starts.
-# Usage:
-#   export HOST_UID=$(id -u); export HOST_GID=$(id -g)
-#   COMPOSE_PROJECT_NAME=duranc_installer_ui docker compose -f doc-comp-web-installer-gw-stg-fixed.yml up -d
-#
+# doc-comp-web-installer-gw-stg-fixed-v2.yml
+# Safer YAML: use list form for command and healthcheck to avoid quoting errors.
 services:
   mkdirs:
     image: busybox:latest
-    command: >
-      sh -c "mkdir -p /host/output/gateway-bundle /host/tmp
-      && chmod -R 0775 /host
-      && chown -R ${HOST_UID}:${HOST_GID} /host"
+    command:
+      - sh
+      - -c
+      - |
+        mkdir -p /host/output/gateway-bundle /host/tmp
+        chmod -R 0775 /host
+        chown -R ${HOST_UID}:${HOST_GID} /host
     volumes:
       - /opt/duranc/installer-web:/host
     restart: "no"
 
   web:
-    image: index.docker.io/durancai/staging-installer-web-gw:latest
-    # If you use a different image tag, change it here.
+    image: durancai/staging-installer-web-gw:latest
     depends_on:
       mkdirs:
         condition: service_completed_successfully
@@ -31,7 +29,9 @@ services:
       - /opt/duranc/installer-web/output:/app/output
       - /opt/duranc/installer-web/tmp:/app/tmp
     healthcheck:
-      test: ["CMD-SHELL", "python3 -c 'import os,sys; os.makedirs("/app/output/gateway-bundle", exist_ok=True); print("ok")'"]
+      test:
+        - CMD-SHELL
+        - test -d /app/output/gateway-bundle
       interval: 10s
       timeout: 5s
       retries: 5
