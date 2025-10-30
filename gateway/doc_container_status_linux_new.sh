@@ -1,140 +1,229 @@
 #!/usr/bin/env bash
-# Auto-restart Docker containers that exited due to error (non-zero exit code).
-# Safe, portable, and cron-friendly.
+#
+# doc_container_status_linux_new.sh
+#
+# Reusable watchdog.
+# - Runs from cron every 2 minutes as root in production.
+# - Can ALSO be run manually by a normal user (for debugging).
+#
+# Behavior:
+#   1. Look at ALL Docker containers on this host (not just duranc_gateway_*).
+#   2. If any container is NOT running:
+#        - If it's part of a docker compose project, run `docker compose up -d`
+#          for that whole project (once per project per run).
+#        - Otherwise, try `docker start <container>`.
+#
+# This ensures gateways (and any other services) auto-heal.
+#
 
 set -Eeuo pipefail
 
-### ---- Config (override via env) -------------------------------------------
-DOCKER_SERVICE_NAME="${DOCKER_SERVICE_NAME:-docker}"
-LOG_FILE="${LOG_FILE:-$HOME/container_check.txt}"
-LIST_FILE="${LIST_FILE:-$HOME/.cont_names.txt}"
-LOCK_FILE="${LOCK_FILE:-/tmp/container_check.lock}"
-TZ_STR="${TZ_STR:-Asia/Kolkata}"        # for timestamps
-DRY_RUN="${DRY_RUN:-false}"             # set to "true" to simulate
-OPT_OUT_LABEL="${OPT_OUT_LABEL:-com.duranc.autorestart}"  # set to "off" to skip
-### -------------------------------------------------------------------------
+########################################
+# Detect privilege level
+########################################
+IS_ROOT=0
+if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+  IS_ROOT=1
+fi
 
+########################################
+# Paths / Files
+########################################
+TZ_STR="${TZ_STR:-Asia/Kolkata}"
+
+if [ "$IS_ROOT" -eq 1 ]; then
+  LOG_FILE="/var/log/duranc-status.log"
+  LOCK_FILE="/var/lock/duranc_status.lock"
+else
+  # Fallbacks for manual (non-root) runs
+  LOG_FILE="${HOME}/duranc-status.log"
+  LOCK_FILE="${TMPDIR:-/tmp}/duranc_status.lock.$USER"
+fi
+
+DOCKER_SERVICE_NAME="${DOCKER_SERVICE_NAME:-docker}"
+
+########################################
+# Helpers
+########################################
 log() {
-  # Prints ISO timestamp in the configured timezone
   TZ="$TZ_STR" printf '[%(%Y-%m-%d %H:%M:%S %Z)T] %s\n' -1 "$*" | tee -a "$LOG_FILE"
 }
 
-fail() {
-  log "ERROR: $*"
+fatal() {
+  log "FATAL: $*"
   exit 1
 }
 
 have_cmd() { command -v "$1" >/dev/null 2>&1; }
 
-# 0) Lock to avoid concurrent runs (cron-safe)
-exec 9>"$LOCK_FILE" || { echo "Cannot open lock file $LOCK_FILE"; exit 1; }
+########################################
+# Prepare dirs (handle both root / non-root)
+########################################
+if [ "$IS_ROOT" -eq 1 ]; then
+  mkdir -p /var/lock /var/log || true
+else
+  mkdir -p "$(dirname "$LOG_FILE")" || true
+  mkdir -p "$(dirname "$LOCK_FILE")" || true
+fi
+
+########################################
+# Concurrency guard
+########################################
+exec 9>"$LOCK_FILE" || { echo "Cannot open lock $LOCK_FILE"; exit 1; }
 if ! flock -n 9; then
-  echo "Another instance is running, exiting."
+  echo "Another watchdog run is still active, exiting."
   exit 0
 fi
 trap 'rm -f "$LOCK_FILE" 2>/dev/null || true' EXIT
 
-# 1) Find docker binary
+########################################
+# Locate docker binary and ensure daemon is live
+########################################
 DOCKER_BIN="$(command -v docker || true)"
-if [[ -z "${DOCKER_BIN}" ]]; then
+if [ -z "$DOCKER_BIN" ]; then
   for p in /usr/bin/docker /usr/local/bin/docker /bin/docker; do
-    [[ -x "$p" ]] && DOCKER_BIN="$p" && break
+    [ -x "$p" ] && DOCKER_BIN="$p" && break
   done
 fi
-[[ -n "${DOCKER_BIN}" ]] || fail "Docker binary not found in PATH or common locations."
+[ -n "$DOCKER_BIN" ] || fatal "docker binary not found"
 
-# 2) Basic checks: Docker daemon reachable
+# Ensure daemon is live.
+# Root path: we can try to start/recover Docker via systemctl.
+# Non-root path: we just check; if it's dead we bail gracefully.
 if ! "$DOCKER_BIN" info >/dev/null 2>&1; then
-  # Try starting service if possible (optional)
-  if have_cmd systemctl && systemctl is-enabled --quiet "${DOCKER_SERVICE_NAME}.service" 2>/dev/null; then
-    log "Docker daemon not responding. Attempting to start ${DOCKER_SERVICE_NAME}.service ..."
+  if [ "$IS_ROOT" -eq 1 ] && have_cmd systemctl && systemctl is-enabled --quiet "${DOCKER_SERVICE_NAME}.service" 2>/dev/null; then
+    log "Docker not responding -> starting ${DOCKER_SERVICE_NAME}.service ..."
     systemctl start "${DOCKER_SERVICE_NAME}.service" || true
-    # Re-check
-    "$DOCKER_BIN" info >/dev/null 2>&1 || fail "Docker daemon still not responding after start attempt."
+    "$DOCKER_BIN" info >/dev/null 2>&1 || fatal "Docker still not responding after start attempt"
   else
-    fail "Docker daemon not responding. Start it and re-run."
+    fatal "Docker daemon not responding (are you root or in docker group?)"
   fi
 fi
 
-# 3) Build container list (ID + Name) for reference (like your original)
-: >"$LIST_FILE"
-"$DOCKER_BIN" ps -a --format '{{.ID}} {{.Names}}' > "$LIST_FILE"
+########################################
+# Extract docker compose metadata from container
+# Output: "<project> <service> <workdir>" or "" if not compose
+########################################
+get_compose_meta() {
+  local cname="$1"
+  local project service workdir
+  project="$("$DOCKER_BIN" inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "$cname" 2>/dev/null || true)"
+  service="$("$DOCKER_BIN" inspect -f '{{ index .Config.Labels "com.docker.compose.service" }}' "$cname" 2>/dev/null || true)"
+  workdir="$("$DOCKER_BIN" inspect -f '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' "$cname" 2>/dev/null || true)"
 
-# 4) Header in log
-{
-  echo "================================"
-  echo "Docker Path: $DOCKER_BIN"
-  TZ="$TZ_STR" date +"Container Check Run Time: %Y-%m-%d %H:%M:%S %Z"
-} > "$LOG_FILE"
+  # If no project label -> not compose
+  if [ -z "$project" ] || [ "$project" = "<no value>" ]; then
+    return 1
+  fi
 
-# 5) Iterate containers and evaluate status
-while read -r contID contNAME; do
-  [[ -z "${contID:-}" || -z "${contNAME:-}" ]] && continue
+  # Some engines don't fill working_dir. Try to guess from first bind mount.
+  if [ -z "$workdir" ] || [ "$workdir" = "<no value>" ]; then
+    workdir="$("$DOCKER_BIN" inspect -f '{{range .Mounts}}{{if eq .Type "bind"}}{{.Source}} {{end}}{{end}}' "$cname" | awk 'NR==1{print $1}')"
+  fi
 
-  # Fast skip if container opted out via label
-  opt_out="$("$DOCKER_BIN" inspect -f '{{ index .Config.Labels "'"$OPT_OUT_LABEL"'" }}' "$contNAME" 2>/dev/null || true)"
-  if [[ "${opt_out,,}" == "off" || "${opt_out,,}" == "false" || "${opt_out,,}" == "no" ]]; then
-    log "Skipping $contNAME (opt-out label ${OPT_OUT_LABEL}=${opt_out})"
+  echo "$project $service $workdir"
+  return 0
+}
+
+########################################
+# Heal a full compose project
+########################################
+heal_compose_stack() {
+  local project="$1"
+  local workdir="$2"
+
+  # find a compose file to run
+  local compose_file=""
+  for cand in docker-compose.yml compose.yml docker-compose.yaml compose.yaml; do
+    if [ -f "$workdir/$cand" ]; then
+      compose_file="$workdir/$cand"
+      break
+    fi
+  done
+
+  if [ -z "$compose_file" ]; then
+    log "WARN: compose stack '$project' has no compose file in $workdir"
+    return 1
+  fi
+
+  if [ "$IS_ROOT" -ne 1 ]; then
+    log "NOTICE: Would heal compose stack '$project', but not root. Try sudo."
+    return 0
+  fi
+
+  log "Healing compose stack '$project' (dir=$workdir file=$(basename "$compose_file")) ..."
+  (
+    cd "$workdir"
+    COMPOSE_PROJECT_NAME="$project" "$DOCKER_BIN" compose -f "$compose_file" up -d || {
+      log "ERROR: compose up -d failed for project '$project'"
+      return 1
+    }
+  )
+  log "Heal complete for compose stack '$project'."
+  return 0
+}
+
+########################################
+# Heal a single plain container
+########################################
+heal_single_container() {
+  local cname="$1"
+  if [ "$IS_ROOT" -ne 1 ]; then
+    log "NOTICE: Container '$cname' is down; would 'docker start' but not root. Try sudo."
+    return 0
+  fi
+
+  log "Attempting to start standalone container '$cname' ..."
+  "$DOCKER_BIN" start "$cname" >/dev/null 2>&1 && \
+    log "Started container '$cname'." || \
+    log "ERROR: failed to start container '$cname'."
+}
+
+########################################
+# Main
+########################################
+log "================================"
+TZ="$TZ_STR" date +"Watchdog Run: %Y-%m-%d %H:%M:%S %Z" | tee -a "$LOG_FILE"
+echo "Host: $(hostname)"           | tee -a "$LOG_FILE"
+echo "Docker: $("$DOCKER_BIN" --version 2>/dev/null)" | tee -a "$LOG_FILE"
+[ "$IS_ROOT" -eq 1 ] && echo "Mode: root/cron"   | tee -a "$LOG_FILE" || echo "Mode: user/test" | tee -a "$LOG_FILE"
+
+declare -A healed_project
+
+ALL_CONTAINERS="$("$DOCKER_BIN" ps -a --format '{{.Names}}')"
+
+for cname in $ALL_CONTAINERS; do
+  [ -z "$cname" ] && continue
+
+  state_status="$("$DOCKER_BIN" inspect -f '{{.State.Status}}' "$cname" 2>/dev/null || echo "unknown")"
+  state_running="$("$DOCKER_BIN" inspect -f '{{.State.Running}}' "$cname" 2>/dev/null || echo "false")"
+  state_exit="$("$DOCKER_BIN" inspect -f '{{.State.ExitCode}}' "$cname" 2>/dev/null || echo "255")"
+
+  log "Check $cname: status=$state_status running=$state_running exit=$state_exit"
+
+  # already up? skip.
+  if [ "$state_running" = "true" ]; then
     continue
   fi
 
-  # Gather state
-  state_status="$("$DOCKER_BIN" inspect -f '{{.State.Status}}' "$contNAME" 2>/dev/null || echo "unknown")"
-  state_running="$("$DOCKER_BIN" inspect -f '{{.State.Running}}' "$contNAME" 2>/dev/null || echo "false")"
-  state_exit="$("$DOCKER_BIN" inspect -f '{{.State.ExitCode}}' "$contNAME" 2>/dev/null || echo "255")"
-  state_oom="$("$DOCKER_BIN" inspect -f '{{.State.OOMKilled}}' "$contNAME" 2>/dev/null || echo "false")"
+  # down or exited => heal attempt
+  meta="$(get_compose_meta "$cname" || true)"
+  if [ -n "$meta" ]; then
+    project="$(echo "$meta" | awk '{print $1}')"
+    workdir="$(echo "$meta" | awk '{print $3}')"
 
-  log "Checking: $contNAME (status=$state_status running=$state_running exit=$state_exit oom=$state_oom)"
-
-  # Decision matrix:
-  # - running=true      => OK (no action)
-  # - status=paused     => leave it alone
-  # - status=exited
-  #     - exit=0        => user likely stopped it cleanly -> don't restart
-  #     - exit!=0       => crash/failed -> restart
-  # - status=dead       => restart
-  # - unknown/created   => best-effort: if not running and exit!=0 -> restart
-
-  action="none"
-  if [[ "$state_running" == "true" ]]; then
-    action="skip-running"
-  elif [[ "$state_status" == "paused" ]]; then
-    action="skip-paused"
-  elif [[ "$state_status" == "exited" && "$state_exit" != "0" ]]; then
-    action="restart"
-  elif [[ "$state_status" == "dead" ]]; then
-    action="restart"
-  elif [[ "$state_status" == "created" || "$state_status" == "unknown" ]]; then
-    if [[ "$state_exit" != "0" ]]; then
-      action="restart"
+    # avoid repeating project heal
+    if [ -n "$project" ] && [ -z "${healed_project[$project]+x}" ]; then
+      heal_compose_stack "$project" "$workdir"
+      healed_project[$project]="yes"
+    else
+      log "Compose project '$project' already healed in this run. Skipping duplicate."
     fi
+  else
+    heal_single_container "$cname"
   fi
+done
 
-  case "$action" in
-    restart)
-      log 'CRITICAL - '"$contNAME"' - not running (exit code '"$state_exit"'). Restarting...'
-      if [[ "${DRY_RUN}" == "true" ]]; then
-        log "[DRY_RUN] docker restart $contNAME"
-      else
-        if "$DOCKER_BIN" restart "$contNAME" >/dev/null; then
-          log "*** $contNAME - container restarted successfully."
-        else
-          log "ERROR: Failed to restart $contNAME"
-        fi
-      fi
-      ;;
-    skip-running)
-      log "OK - $contNAME is running."
-      ;;
-    skip-paused)
-      log "INFO - $contNAME is paused; leaving it as-is."
-      ;;
-    *)
-      # No action taken; include brief note
-      log "INFO - $contNAME requires no action (status=$state_status exit=$state_exit)."
-      ;;
-  esac
-
-done < "$LIST_FILE"
-
-echo "================================" >> "$LOG_FILE"
+log "Watchdog run complete."
+log "================================"
+exit 0
