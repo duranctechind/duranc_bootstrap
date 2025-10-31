@@ -1,0 +1,38 @@
+# Safer YAML: use list form for command and healthcheck to avoid quoting errors.
+services:
+  mkdirs:
+    image: busybox:latest
+    command:
+      - sh
+      - -c
+      - |
+        mkdir -p /host/output/gateway-bundle /host/tmp
+        chmod -R 0775 /host
+        chown -R ${HOST_UID}:${HOST_GID} /host
+    volumes:
+      - /opt/duranc/installer-web:/host
+    restart: "no"
+
+  web:
+    image: durancai/production-installer-web-gw:latest
+    depends_on:
+      mkdirs:
+        condition: service_completed_successfully
+    environment:
+      HOST_UID: "${HOST_UID}"
+      HOST_GID: "${HOST_GID}"
+    user: "${HOST_UID}:${HOST_GID}"
+    ports:
+      - "5080:5080"
+    volumes:
+      - /opt/duranc/installer-web/output:/app/output
+      - /opt/duranc/installer-web/tmp:/app/tmp
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -d /app/output/gateway-bundle
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
