@@ -1,0 +1,65 @@
+# docker-compose.yml (Compose Spec)
+name: duranc
+
+services:
+  gateway:
+    image: durancai/production-gateway-linux:latest
+    container_name: duranc_gateway
+    restart: unless-stopped
+    shm_size: "4gb"
+    privileged: true
+    # network_mode: host (Not supported on Windows)
+    ports:
+      - 8080:8080
+    command: /usr/bin/supervisord
+
+    environment:
+      TZ: "Asia/Kolkata"
+      DEBUG: "1"
+      LOG_LEVEL: "debug"
+
+    volumes:
+      - gateway:/root/.duranc:rw
+      - motion:/root/.motion:rw
+      - gateway:/persistent:rw
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+      com.centurylinklabs.watchtower.scope: "duranc-scope"
+
+  auto_updater:
+    image: containrrr/watchtower:latest
+    container_name: duranc_watchtower
+    restart: unless-stopped
+    command:
+    - --scope=duranc-scope
+    - --debug
+    - --interval=300
+    - --cleanup
+    - --rolling-restart
+    - --include-restarting
+    environment:
+      TZ: Asia/Kolkata
+      WATCHTOWER_SCOPE: duranc-scope
+      WATCHTOWER_DEBUG: 'true'
+      DOCKER_CONFIG: /
+      DOCKER_API_VERSION: 1.44
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - ~/.docker/config.json:/config.json:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+
+volumes:
+  gateway:
+  motion:
+
