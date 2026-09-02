@@ -58,7 +58,10 @@ jobs:
             bash -euo pipefail -c '
               export DEBIAN_FRONTEND=noninteractive
               apt-get update -qq
-              apt-get install -y -qq shc binutils file >/dev/null
+              # gcc is not a dependency of the shc package, and shc still prints
+              # "Success" when it cannot find a compiler -- leaving no binary behind.
+              apt-get install -y -qq shc gcc binutils file >/dev/null
+              command -v cc >/dev/null || { echo "::error::no C compiler in the build container"; exit 1; }
 
               mkdir -p build work
 
@@ -79,6 +82,7 @@ jobs:
                 bash -n "$work" || { echo "::error::${name}: bash syntax check failed"; exit 1; }
 
                 shc -r -f "$work" -o "build/${name}.sh.x"
+                test -s "build/${name}.sh.x" || { echo "::error::${name}.sh.x was not produced"; exit 1; }
                 chmod 0755 "build/${name}.sh.x"
 
                 # An x86 binary here would be a silent disaster: it downloads fine and then
