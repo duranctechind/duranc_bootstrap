@@ -282,5 +282,33 @@ clear
 sudo docker ps -a
 echo
 say "installed on $MODEL in '$MODE' mode. Compose file: $COMPOSE_FILE"
-say "gateway logs:  sudo docker exec duranc_gateway ls /persistent/logs"
-say "service state: sudo docker exec duranc_gateway supervisorctl status"
+say "gateway logs:  docker exec duranc_gateway ls /persistent/logs"
+say "service state: docker exec duranc_gateway supervisorctl status"
+
+# ---------------------------------------------------------------------------
+# 11. Activate the docker group in THIS terminal
+#
+# usermod added $USER to the docker group, but this shell was started before that, so it
+# has not picked the group up yet -- a plain "docker ps" here fails with
+# "permission denied ... /var/run/docker.sock" until the user logs out and back in.
+# Make sure the membership exists, then exec 'newgrp docker', which REPLACES this process
+# with a shell that carries the group, so docker works in the same terminal with no
+# re-login. exec must be the last thing the script does (nothing after it runs). On a
+# non-interactive/piped run there is no shell to hand over to, so we just tell the user.
+# ---------------------------------------------------------------------------
+if ! getent group docker >/dev/null 2>&1; then
+    :   # no docker group at all (shouldn't happen after a docker install) -- nothing to do
+elif getent group docker | tr ',' ' ' | grep -qw "$USER" && docker ps >/dev/null 2>&1; then
+    :   # already a member AND active in this shell -- docker already works, leave as is
+else
+    getent group docker | tr ',' ' ' | grep -qw "$USER" || sudo usermod -aG docker "$USER"
+    if [ -t 0 ] && [ -t 1 ] && command -v newgrp >/dev/null 2>&1; then
+        echo
+        say "Activating the docker group in this terminal so 'docker' works without sudo."
+        say "You are now in a docker-enabled shell -- type 'exit' when finished."
+        exec newgrp docker
+    else
+        echo
+        say "NOTE: log out and back in (or run 'newgrp docker') to use docker without sudo."
+    fi
+fi
