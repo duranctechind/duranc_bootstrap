@@ -1,0 +1,138 @@
+name: Build Raspberry Pi gateway installers (shc, arm64)
+run-name: "Build Raspberry Pi gateway installers → ${{ github.ref_name }}"
+
+# Compiles the plain sources in gateway/src/rasp-pi/ into shc binaries and commits them
+# back as gateway/*.sh.x, which is what the customer devices wget.
+#
+# Two things make this a CI job rather than a local build:
+#   1. shc produces a NATIVE binary, so an aarch64 .sh.x has to be compiled on aarch64.
+#      The installation-scripts box (18.18.18.130) is x86_64, so its local shc would emit
+#      binaries that cannot run on a Pi at all.
+#   2. The Docker Hub pull credentials must not sit in plaintext in this PUBLIC repo. The
+#      sources carry __DOCKER_HUB_USER__ / __DOCKER_HUB_TOKEN__ placeholders and the real
+#      values are injected here from repository secrets, immediately before compiling.
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'gateway/src/rasp-pi/**'
+      - '.github/workflows/build-rasp-pi-installers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    # GitHub-hosted arm64 runner: native aarch64, no QEMU. Verified 02-09-2026 that this
+    # label is served on this org's repos.
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Confirm the runner is aarch64
+        run: |
+          test "$(uname -m)" = "aarch64" || { echo "::error::runner is $(uname -m), need aarch64"; exit 1; }
+
+      - name: Compile with shc inside Debian bullseye (glibc 2.31)
+        env:
+          PULL_USER: ${{ secrets.DOCKERHUB_PULL_USER }}
+          PULL_TOKEN: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$PULL_USER"  || { echo "::error::secret DOCKERHUB_PULL_USER is not set";  exit 1; }
+          test -n "$PULL_TOKEN" || { echo "::error::secret DOCKERHUB_PULL_TOKEN is not set"; exit 1; }
+
+          # Why a bullseye CONTAINER and not the runner itself: an shc binary links against
+          # the glibc it was built on. ubuntu-24.04-arm is glibc 2.39, so a binary built
+          # there dies on Raspberry Pi OS bookworm with "GLIBC_2.38 not found". bullseye is
+          # glibc 2.31, which runs on Pi OS bullseye, bookworm and trixie alike.
+          docker run --rm \
+            -v "$PWD":/w -w /w \
+            -e PULL_USER -e PULL_TOKEN \
+            --platform linux/arm64 \
+            debian:bullseye \
+            bash -euo pipefail -c '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update -qq
+              apt-get install -y -qq shc binutils file >/dev/null
+
+              mkdir -p build work
+
+              inject() {
+                sed -e "s|__DOCKER_HUB_USER__|${PULL_USER}|g" \
+                    -e "s|__DOCKER_HUB_TOKEN__|${PULL_TOKEN}|g" "$1"
+              }
+
+              compile() {   # compile <source.sh> <output-basename> [default-mode]
+                src="$1"; name="$2"; mode="${3:-}"
+                work="work/${name}.sh"
+                inject "$src" > "$work"
+                if [ -n "$mode" ]; then
+                  sed -i "s|DURANC_GW_MODE:-staging|DURANC_GW_MODE:-${mode}|" "$work"
+                  grep -q "DURANC_GW_MODE:-${mode}" "$work" || { echo "::error::could not set default mode ${mode}"; exit 1; }
+                fi
+                grep -q "__DOCKER_HUB_TOKEN__" "$work" && { echo "::error::${name}: token placeholder survived injection"; exit 1; }
+                bash -n "$work" || { echo "::error::${name}: bash syntax check failed"; exit 1; }
+
+                shc -r -f "$work" -o "build/${name}.sh.x"
+                chmod 0755 "build/${name}.sh.x"
+
+                # An x86 binary here would be a silent disaster: it downloads fine and then
+                # fails on the Pi with "cannot execute binary file".
+                file "build/${name}.sh.x" | grep -q "aarch64" || { echo "::error::${name}.sh.x is not an aarch64 binary"; exit 1; }
+
+                need=$(objdump -T "build/${name}.sh.x" | grep -o "GLIBC_[0-9.]*" | sed "s/GLIBC_//" | sort -V | tail -1)
+                if [ "$(printf "%s\n2.31\n" "$need" | sort -V | tail -1)" != "2.31" ]; then
+                  echo "::error::${name}.sh.x needs glibc ${need}, above the 2.31 floor"; exit 1
+                fi
+                echo "built build/${name}.sh.x  (aarch64, needs glibc <= ${need})"
+              }
+
+              # One source, three drop-in filenames. The mode is still overridable per run
+              # (argument or DURANC_GW_MODE); these only differ in the baked-in default, so
+              # there is a single script to maintain.
+              compile gateway/src/rasp-pi/duranc_gw_rasp_pi.sh duranc_gw_rasp_pi      staging
+              compile gateway/src/rasp-pi/duranc_gw_rasp_pi.sh duranc_gw_rasp_pi_prod prod
+              compile gateway/src/rasp-pi/duranc_gw_rasp_pi.sh duranc_gw_rasp_pi_nas  nas
+
+              compile gateway/src/rasp-pi/delayedstart_rasp_pi.sh          delayedstart_rasp_pi
+              compile gateway/src/rasp-pi/doc_container_status_rasp_pi.sh  doc_container_status_rasp_pi
+
+              rm -rf work
+              chown -R "$(stat -c %u:%g /w)" build
+            '
+
+      - name: Smoke-test the compiled installer
+        run: |
+          set -euo pipefail
+          # Runs the real binary with a mode it must reject. Proves the payload decodes and
+          # executes on this architecture without touching docker, sudo or the crontab.
+          out=$(./build/duranc_gw_rasp_pi.sh.x __smoke__ 2>&1) && rc=0 || rc=$?
+          echo "$out"
+          test "$rc" -ne 0 || { echo "::error::the installer accepted an invalid mode"; exit 1; }
+          grep -q "unknown mode" <<<"$out" || { echo "::error::unexpected output from the compiled installer"; exit 1; }
+          echo "smoke test passed"
+
+      - name: Publish the compiled installers
+        run: |
+          set -euo pipefail
+          mv build/*.sh.x gateway/
+          rm -rf build
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gateway/*.sh.x
+          if git diff --cached --quiet; then
+            echo "no changes to publish"
+            exit 0
+          fi
+          git commit -m "ci: rebuild Raspberry Pi gateway installers with shc (aarch64, glibc 2.31) [skip ci]"
+          git push
+
+      - name: Done
+        run: |
+          echo "✅ gateway/duranc_gw_rasp_pi{,_prod,_nas}.sh.x, delayedstart_rasp_pi.sh.x and"
+          echo "   doc_container_status_rasp_pi.sh.x rebuilt for aarch64 (Pi 4 and Pi 5)."
