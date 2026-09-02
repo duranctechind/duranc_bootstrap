@@ -56,6 +56,10 @@ services:
     environment:
       WATCHTOWER_SCOPE: duranc-gw
       DOCKER_CONFIG: /
+      # containrrr/watchtower is abandoned and defaults its Docker client to API 1.25,
+      # which Docker Engine 25+/29 rejects (min 1.40). Force a supported version, or
+      # watchtower restart-loops with "client version 1.25 is too old".
+      DOCKER_API_VERSION: "1.40"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # Explicit path, not "~/.docker/...": the installer runs "docker login" under sudo,
