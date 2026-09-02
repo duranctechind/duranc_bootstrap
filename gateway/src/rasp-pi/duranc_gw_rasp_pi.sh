@@ -44,6 +44,37 @@ pause_exit() {
     exit 1
 }
 
+# run a slow, quiet command behind a spinner so the screen never looks frozen.
+# The command is a fixed shell string (our own text, never user input); eval keeps
+# pipes such as the docker-login one intact. On a non-terminal (piped install) it
+# just prints start/done instead of animating. On failure the captured output is shown.
+# ponytail: eval of literal strings only; the spinner is for steps with no native progress.
+run_step() {
+    local msg="$1" cmd="$2" log rc
+    log="$(mktemp)"
+    ( eval "$cmd" ) >"$log" 2>&1 &
+    local pid=$! frames='|/-\' i=0
+    if [ -t 1 ]; then
+        printf '\033[?25l' 2>/dev/null   # hide cursor
+        while kill -0 "$pid" 2>/dev/null; do
+            printf '\r[duranc-gw] %s %s ' "$msg" "${frames:i++%4:1}"
+            sleep 0.2
+        done
+        printf '\033[?25h\r' 2>/dev/null # show cursor, return to line start
+    else
+        printf '[duranc-gw] %s ...\n' "$msg"
+    fi
+    wait "$pid"; rc=$?
+    if [ "$rc" -eq 0 ]; then
+        say "$msg ... done"
+    else
+        say "$msg ... FAILED"
+        sed 's/^/    /' "$log"
+    fi
+    rm -f "$log"
+    return $rc
+}
+
 case "$MODE" in
     staging) COMPOSE_SRC="doc-comp-gw-rasp-pi.yml"      ;;
     prod)    COMPOSE_SRC="doc-comp-gw-rasp-pi-prod.yml" ;;
@@ -151,9 +182,8 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 if ! sudo docker compose version >/dev/null 2>&1; then
-    say "docker compose v2 plugin missing -- installing"
-    sudo apt-get update -qq
-    sudo apt-get install -y docker-compose-plugin >/dev/null 2>&1
+    run_step "installing the docker compose plugin" \
+        "sudo apt-get update -qq && sudo apt-get install -y docker-compose-plugin" || true
 fi
 sudo docker compose version >/dev/null 2>&1 || fail \
     "docker compose v2 is unavailable. Install it with 'sudo apt-get install docker-compose-plugin' (it needs Docker's own apt repo, which get.docker.com adds) and re-run."
@@ -202,8 +232,8 @@ REBOOT_BIN="$(command -v reboot || echo /sbin/reboot)"
 # way it looks -- a dangling mount there is how a whole estate silently stopped
 # auto-updating (18-08-2026).
 # ---------------------------------------------------------------------------
-say "logging in to Docker Hub as $DOCKER_HUB_USER"
-echo "$DOCKER_HUB_TOKEN" | sudo docker login --username "$DOCKER_HUB_USER" --password-stdin >/dev/null 2>&1 || \
+run_step "logging in to Docker Hub as $DOCKER_HUB_USER" \
+    "echo '$DOCKER_HUB_TOKEN' | sudo docker login --username '$DOCKER_HUB_USER' --password-stdin" || \
     fail "docker login failed -- check network access to registry-1.docker.io"
 sudo test -f /root/.docker/config.json || \
     fail "docker login reported success but /root/.docker/config.json is missing"
@@ -234,8 +264,15 @@ sed -i "s|__NODE_HEAP__|${NODE_HEAP}|g" "$COMPOSE_FILE"
 sudo docker compose -f "$COMPOSE_FILE" config >/dev/null || \
     fail "$COMPOSE_FILE is not valid for this docker compose version"
 
-say "starting the gateway"
-sudo docker compose -f "$COMPOSE_FILE" up -d || fail "docker compose up failed"
+# Pull the image with docker's OWN progress bars visible, rather than letting the pull
+# happen silently inside "up -d". The gateway image is a few hundred MB and the first
+# download on a Pi can take several minutes -- a blank cursor there looks hung, which is
+# exactly what it looked like before. "up -d" afterward is quick because the image is local.
+say "downloading the gateway image (first run: this can take several minutes)"
+sudo docker compose -f "$COMPOSE_FILE" pull || fail "could not download the gateway image"
+
+run_step "starting the gateway container" \
+    "sudo docker compose -f '$COMPOSE_FILE' up -d" || fail "docker compose up failed"
 
 # ---------------------------------------------------------------------------
 # 10. Show the result
