@@ -1,40 +1,77 @@
-version: "3"
+# doc-comp-gw-rasp-pi.yml -- Duranc VMS Gateway, Raspberry Pi 4 and Pi 5, STAGING.
+#
+# One image serves both boards: durancai/staging-gateway-rasp-pi is linux/arm64 and Pi 4
+# and Pi 5 are both aarch64. The old ":pi5" tag is gone -- there is no second image.
+#
+# Compose-spec syntax, so this needs docker compose v2 (the docker-compose-plugin package).
+# duranc_gw_rasp_pi.sh.x installs it and substitutes __NODE_HEAP__ from the board's RAM
+# before running "up".
+name: duranc
+
 services:
   gateway:
-    image: index.docker.io/durancai/staging-gateway-rasp-pi:latest
+    image: durancai/staging-gateway-rasp-pi:latest
     container_name: duranc_gateway
     restart: unless-stopped
     shm_size: "4gb"
+    privileged: true
+    network_mode: host
+    command: /usr/bin/supervisord
+
+    environment:
+      # Filled in by the installer: 2048 on a Pi 5 or a 4/8GB Pi 4, 1024 on a 2GB Pi 4.
+      NODE_OPTIONS: "--max-old-space-size=__NODE_HEAP__"
+
     volumes:
       - gateway:/root/.duranc:rw
       - motion:/root/.motion:rw
-    network_mode: host
-    privileged: true
+      # /persistent holds the seeded MediaMTX.yml, the gateway logs that /tmp/logs points
+      # at, and Workflow.env. Without this mount they land in the container layer and are
+      # lost on every watchtower recreate, and MediaMTX crash-loops on a missing config.
+      - gateway:/persistent:rw
+
     logging:
+      driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-    command: /usr/bin/supervisord
+
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+      com.centurylinklabs.watchtower.scope: "duranc-gw"
 
   autoupdater:
-    image: containrrr/watchtower
+    image: containrrr/watchtower:latest
     container_name: duranc_autoupdater
     restart: unless-stopped
+    command:
+      # Scoped to the label above, so watchtower only ever touches the gateway and never
+      # anything else a customer happens to run on the same board.
+      - --scope=duranc-gw
+      # Nightly at midnight, 15 minutes after the cron reboot -- a camera gateway must not
+      # be recreated in the middle of a working day.
+      - "--schedule=0 0 0 * * *"
+      - --cleanup
+      - --include-restarting
+    environment:
+      WATCHTOWER_SCOPE: duranc-gw
+      DOCKER_CONFIG: /
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ~/.docker/auth.json:/config.json:ro
-    ports:
-      - 9080:8080
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Explicit path, not "~/.docker/...": the installer runs "docker login" under sudo,
+      # so the credentials are written here. A "~" in this position does not expand to
+      # root's home the way it reads, and a dangling mount silently stops every update.
+      - /root/.docker/config.json:/config.json:ro
     logging:
+      driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-    command: watchtower duranc_gateway --schedule "0 0 0 * * *" --cleanup --debug
 
 volumes:
   gateway:
-    external:
-      name: stg-gw-files
+    name: stg-gw-files
+    external: true
   motion:
-    external:
-      name: stg-motion-files
+    name: stg-motion-files
+    external: true
