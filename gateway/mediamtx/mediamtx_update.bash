@@ -12,18 +12,18 @@ BINARY_PATH="$BASE_PATH"mediamtx
 CONFIG_PATH="$BASE_PATH"mediamtx.yml
 LICENSE_PATH="$BASE_PATH"LICENSE
 URL_BASE="https://raw.githubusercontent.com/DurancOy/duranc_bootstrap/master/gateway/mediamtx/"
-MD5_BINARY_URL="$URL_BASE"mediamtx_"$ARCH"_md5
+SHA256_BINARY_URL="$URL_BASE"mediamtx_"$ARCH"_sha256
 DOWNLOAD_BINARY_URL="$URL_BASE"mediamtx_"$ARCH"
 CONFIG_VERSION_URL="$URL_BASE"CONF_VERSION
 DOWNLOAD_CONF_URL="$URL_BASE"mediamtx.yml
 LICENSE_URL="$URL_BASE"LICENSE
 
-CURRENT_BINARY_MD5=""
-REMOTE_BINARY_MD5="$(curl -s "$MD5_BINARY_URL")"
+CURRENT_BINARY_SHA256=""
+REMOTE_BINARY_SHA256="$(curl -s "$SHA256_BINARY_URL")"
 if [ -f "$BINARY_PATH" ]; then
-    CURRENT_BINARY_MD5="$(md5sum "$BINARY_PATH" | awk '{ print $1 }')"
+    CURRENT_BINARY_SHA256="$(sha256sum "$BINARY_PATH" | awk '{ print $1 }')"
 fi
-if [ "$CURRENT_BINARY_MD5" == "$REMOTE_BINARY_MD5" ]; then
+if [ "$CURRENT_BINARY_SHA256" == "$REMOTE_BINARY_SHA256" ]; then
     echo "Mediamtx binary file is up to date"
 else
     echo "Updating mediamtx binary file..."
