@@ -43,7 +43,7 @@ if [ $REMOTE_CONFIG_VERSION -gt $CURRENT_CONFIG_VERSION ]; then
     echo "Updating mediamtx configuration file... from "$CURRENT_CONFIG_VERSION" to  "$REMOTE_CONFIG_VERSION
     curl -s "$DOWNLOAD_CONF_URL" -o "$CONFIG_PATH"
     PASSWORD=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 10 | head -n 1)
-    sed -i "s/apiuser: PASSWORD_PLACEHOLDER/apiuser: $PASSWORD/g" $CONFIG_PATH
+    sed -i "s/pass: PASSWORD_PLACEHOLDER/pass: $PASSWORD/g" $CONFIG_PATH
 else
     echo "Mediamtx configuration file is up to date"
 fi

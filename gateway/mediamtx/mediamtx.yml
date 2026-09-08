@@ -1,17 +1,29 @@
-#CONF_VERSION=003
+#CONF_VERSION=004
 readBufferCount: 4096
 api: yes
 apiAddress: 127.0.0.1:9997
-apiBasicAuthCredentials:
-  apiuser: PASSWORD_PLACEHOLDER
-rtspDisable: no
-protocols: [tcp]
+authInternalUsers:
+  - user: any
+    pass:
+    ips: []
+    permissions:
+      - action: publish
+      - action: read
+      - action: playback
+  - user: apiuser
+    pass: PASSWORD_PLACEHOLDER
+    ips: ["127.0.0.1", "::1"]
+    permissions:
+      - action: api
+      - action: metrics
+      - action: pprof
+rtsp: yes
+rtspTransports: [tcp]
 rtspAddress: :38554
 rtpAddress: :38000
 rtcpAddress: :38001
-authMethods: [basic]
-rtmpDisable: yes
+rtspAuthMethods: [basic]
+rtmp: no
 hlsVariant: mpegts
-webrtcDisable: yes
-hlsDisable: yes
-
+webrtc: no
+hls: no
