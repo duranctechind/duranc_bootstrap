@@ -11,7 +11,7 @@ mkdir -p $BASE_PATH
 BINARY_PATH="$BASE_PATH"mediamtx
 CONFIG_PATH="$BASE_PATH"mediamtx.yml
 LICENSE_PATH="$BASE_PATH"LICENSE
-URL_BASE="https://raw.githubusercontent.com/DurancOy/duranc_bootstrap/master/gateway/mediamtx/"
+URL_BASE="https://raw.githubusercontent.com/duranctechind/duranc_bootstrap/master/gateway/mediamtx/"
 SHA256_BINARY_URL="$URL_BASE"mediamtx_"$ARCH"_sha256
 DOWNLOAD_BINARY_URL="$URL_BASE"mediamtx_"$ARCH"
 CONFIG_VERSION_URL="$URL_BASE"CONF_VERSION
