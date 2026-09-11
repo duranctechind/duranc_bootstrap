@@ -1,5 +1,5 @@
-#CONF_VERSION=004
-readBufferCount: 4096
+#CONF_VERSION=005
+writeQueueSize: 4096
 api: yes
 apiAddress: 127.0.0.1:9997
 authInternalUsers:
