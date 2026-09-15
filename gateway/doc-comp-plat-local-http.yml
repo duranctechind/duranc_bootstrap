@@ -39,7 +39,7 @@ services:
       - portal_storage:/local_storage:rw
       - data:/tmp/share:rw
     environment:
-        PORTAL_URL
+        PORTAL_URL:
         WIKI_ADMIN_EMAIL: img@duranc.com
         TZ: Asia/Kolkata
     logging:
