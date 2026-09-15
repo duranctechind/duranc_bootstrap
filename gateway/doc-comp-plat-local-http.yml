@@ -39,7 +39,13 @@ services:
       - portal_storage:/local_storage:rw
       - data:/tmp/share:rw
     environment:
-        PORTAL_URL:
+        # The key below is deliberately left with NO colon and NO value. The
+        # installer appends ": <detected host IP>" to it with sed before compose
+        # ever reads this file (see duranc_plat_local_http.sh). Adding a colon
+        # here makes that produce "<ip>:" and breaks the stack, so this file is
+        # NOT valid YAML at rest - measured, do not "fix" it. The token is left
+        # out of this comment on purpose: that same sed would rewrite it too.
+        PORTAL_URL
         WIKI_ADMIN_EMAIL: img@duranc.com
         TZ: Asia/Kolkata
     logging:
@@ -170,6 +176,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ~/.docker/auth.json:/config.json:ro
     environment:
+        DOCKER_API_VERSION: "1.40"
         TZ: Asia/Kolkata
     ports:
       - 9080:8080
