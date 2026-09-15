@@ -36,6 +36,7 @@ services:
     - --rolling-restart
     - --include-restarting
     environment:
+      DOCKER_API_VERSION: "1.40"
       TZ: Asia/Kolkata
       WATCHTOWER_SCOPE: duranc-scope
       WATCHTOWER_DEBUG: 'true'

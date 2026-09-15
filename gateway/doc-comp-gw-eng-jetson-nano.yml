@@ -38,6 +38,8 @@ services:
   
   autoupdater:
     image: containrrr/watchtower
+    environment:
+      DOCKER_API_VERSION: "1.40"
     container_name: duranc_autoupdater
     restart: unless-stopped
     volumes:

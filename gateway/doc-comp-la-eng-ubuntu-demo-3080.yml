@@ -31,6 +31,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ~/.docker/auth.json:/config.json:ro
     environment:
+      DOCKER_API_VERSION: "1.40"
       TZ: "Asia/Kolkata"
     ports:
       - 9080:8080

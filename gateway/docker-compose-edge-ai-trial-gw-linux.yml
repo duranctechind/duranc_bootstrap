@@ -20,6 +20,7 @@ services:
     container_name: duranc_autoupdater
     restart: unless-stopped
     environment:
+      - DOCKER_API_VERSION=1.40
       - REPO_USER=durancinc
       - REPO_PASS=dc202f88-e9d2-4e68-896b-95a55b08a0e3
     volumes:
