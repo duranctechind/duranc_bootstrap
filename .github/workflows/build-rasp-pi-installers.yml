@@ -57,22 +57,24 @@ jobs:
             debian:bullseye \
             bash -euo pipefail -c '
               export DEBIAN_FRONTEND=noninteractive
-              # bullseye-security no longer serves the arm64 pool files its own index
-              # advertises. The live Packages index lists libexpat1 2.2.10-2+deb11u7 and
-              # that file 404s, as do u6, u8 and u9, and archive.debian.org carries no
-              # bullseye-security at all. Two runs failed on it identically, so it is the
-              # mirror rather than CDN skew. apt only reaches it because gcc pulls
-              # libc-devtools and linux-libc-dev from there; bullseye main has versions of
-              # all of them. This container exists solely to give shc a glibc-2.31 compiler
-              # and is never shipped, so dropping the security suite costs nothing that
-              # leaves the runner.
-              sed -i "/-security/d" /etc/apt/sources.list
+              # bullseye-security stopped serving the arm64 pool files its own index advertises.
+              # The live index lists libexpat1 2.2.10-2+deb11u7 and that exact Filename 404s on
+              # deb.debian.org, security.debian.org, ftp.debian.org and the AWS CDN alike, while
+              # archive.debian.org carries no bullseye-security at all. Two identical failures, so
+              # it is the mirror and not CDN skew.
+              #
+              # Dropping the suite does not work either: this image already ships the SECURITY
+              # libc6, so libc6-dev from main cannot satisfy it and apt stops with "held broken
+              # packages". snapshot.debian.org still has the pool, so the suite is pinned there.
+              # A snapshot is a frozen timestamp, which is why Check-Valid-Until has to go off.
+              sed -i "s|^deb .*-security.*|deb http://snapshot.debian.org/archive/debian-security/20260801T000000Z bullseye-security main|" /etc/apt/sources.list
+              echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/99no-check-valid-until
+              # libc6-dev is only a Recommends of gcc, so without it gcc installs but has no
+              # headers and shc dies on "sys/stat.h: No such file or directory" while still
+              # printing Success. A toolchain container should name its headers.
               apt-get update -qq
               # gcc is not a dependency of the shc package, and shc still prints
               # "Success" when it cannot find a compiler -- leaving no binary behind.
-              # libc6-dev is only a Recommends of gcc, and it used to arrive via the security
-              # suite; without it gcc installs but has no headers and shc dies on
-              # "sys/stat.h: No such file or directory" while still printing Success. Name it.
               apt-get install -y -qq shc gcc libc6-dev binutils file >/dev/null
               command -v cc >/dev/null || { echo "::error::no C compiler in the build container"; exit 1; }
 
