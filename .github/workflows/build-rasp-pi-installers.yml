@@ -70,7 +70,10 @@ jobs:
               apt-get update -qq
               # gcc is not a dependency of the shc package, and shc still prints
               # "Success" when it cannot find a compiler -- leaving no binary behind.
-              apt-get install -y -qq shc gcc binutils file >/dev/null
+              # libc6-dev is only a Recommends of gcc, and it used to arrive via the security
+              # suite; without it gcc installs but has no headers and shc dies on
+              # "sys/stat.h: No such file or directory" while still printing Success. Name it.
+              apt-get install -y -qq shc gcc libc6-dev binutils file >/dev/null
               command -v cc >/dev/null || { echo "::error::no C compiler in the build container"; exit 1; }
 
               mkdir -p build work
