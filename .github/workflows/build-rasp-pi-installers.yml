@@ -57,6 +57,16 @@ jobs:
             debian:bullseye \
             bash -euo pipefail -c '
               export DEBIAN_FRONTEND=noninteractive
+              # bullseye-security no longer serves the arm64 pool files its own index
+              # advertises. The live Packages index lists libexpat1 2.2.10-2+deb11u7 and
+              # that file 404s, as do u6, u8 and u9, and archive.debian.org carries no
+              # bullseye-security at all. Two runs failed on it identically, so it is the
+              # mirror rather than CDN skew. apt only reaches it because gcc pulls
+              # libc-devtools and linux-libc-dev from there; bullseye main has versions of
+              # all of them. This container exists solely to give shc a glibc-2.31 compiler
+              # and is never shipped, so dropping the security suite costs nothing that
+              # leaves the runner.
+              sed -i "/-security/d" /etc/apt/sources.list
               apt-get update -qq
               # gcc is not a dependency of the shc package, and shc still prints
               # "Success" when it cannot find a compiler -- leaving no binary behind.
