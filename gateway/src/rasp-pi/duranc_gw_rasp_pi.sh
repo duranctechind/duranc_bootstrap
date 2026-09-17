@@ -115,6 +115,32 @@ MEM_MB=$(awk '/^MemTotal:/ { printf "%d", $2 / 1024 }' /proc/meminfo 2>/dev/null
 if [ "$MEM_MB" -ge 3000 ]; then NODE_HEAP=2048; else NODE_HEAP=1024; fi
 say "memory: ${MEM_MB}MB -> Node heap ${NODE_HEAP}MB"
 
+# The autoupdater bind-mounts /etc/localtime so watchtower evaluates its schedule in
+# the same zone as the nightly 23:45 reboot this script writes to the root crontab
+# below. A bind mount whose SOURCE does not exist makes docker create that source as a
+# DIRECTORY on the host - the accident that left /root/.docker/config.json a directory
+# on demogw and broke every docker pull on that box. -f is false for a directory and
+# for a dangling symlink, which is exactly when to stop.
+#
+# Checked HERE, in pre-flight, rather than beside the mount: once the compose file has
+# been fetched, the update path the CI guide documents ("edit ~/.dur-gw-rasp-pi.yml and
+# docker compose up -d") runs that mount with no guard in front of it.
+#
+# A genuinely missing file is the mildest case - the host then has no zone either and
+# its own cron falls back to UTC, so the two already agree and the mount is redundant
+# rather than wrong. It is still refused: this installer runs only on 64-bit Pi OS or
+# Ubuntu Server arm64, both of which ship the file, so its absence means the image is
+# not what it claims to be.
+if [ ! -f /etc/localtime ]; then
+    echo >&2
+    echo "/etc/localtime is missing, a directory, or a dangling symbolic link." >&2
+    echo "If it is a directory:  sudo rmdir /etc/localtime" >&2
+    echo "Use rmdir and never rm -r, so a directory with anything in it cannot be" >&2
+    echo "destroyed here. Then set the zone with: sudo timedatectl set-timezone <Zone>" >&2
+    echo "and re-run this installer." >&2
+    pause_exit
+fi
+
 # ---------------------------------------------------------------------------
 # 2. NAS pre-flight (nas mode only)
 # ---------------------------------------------------------------------------

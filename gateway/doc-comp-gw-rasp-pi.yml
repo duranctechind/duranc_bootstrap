@@ -66,6 +66,13 @@ services:
       # so the credentials are written here. A "~" in this position does not expand to
       # root's home the way it reads, and a dangling mount silently stops every update.
       - /root/.docker/config.json:/config.json:ro
+      # The schedule above is a cron spec evaluated INSIDE this container, and the
+      # nightly reboot it is meant to follow ("45 23 * * *", written to the root
+      # crontab by duranc_gw_rasp_pi.sh) is host-local. With no zone in the container
+      # Go falls back to UTC, so on an IST board "midnight" fired at 05:30 local -
+      # 5h45m after the reboot, not the 15 minutes above. Following the host keeps
+      # that pairing true wherever the board is installed, without naming a zone.
+      - /etc/localtime:/etc/localtime:ro
     logging:
       driver: json-file
       options:
