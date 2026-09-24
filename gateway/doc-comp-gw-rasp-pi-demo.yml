@@ -1,0 +1,88 @@
+# doc-comp-gw-rasp-pi-demo.yml -- Duranc VMS Gateway, Raspberry Pi 4 and Pi 5, DEMO.
+#
+# One image serves both boards: durancai/demo-gateway-rasp-pi is linux/arm64 and Pi 4
+# and Pi 5 are both aarch64. The old ":pi5" tag is gone -- there is no second image.
+#
+# Compose-spec syntax, so this needs docker compose v2 (the docker-compose-plugin package).
+# duranc_gw_rasp_pi.sh.x installs it and substitutes __NODE_HEAP__ from the board's RAM
+# before running "up".
+name: duranc
+
+services:
+  gateway:
+    image: durancai/demo-gateway-rasp-pi:latest
+    container_name: duranc_gateway
+    restart: unless-stopped
+    shm_size: "4gb"
+    privileged: true
+    network_mode: host
+    command: /usr/bin/supervisord
+
+    environment:
+      # Filled in by the installer: 2048 on a Pi 5 or a 4/8GB Pi 4, 1024 on a 2GB Pi 4.
+      NODE_OPTIONS: "--max-old-space-size=__NODE_HEAP__"
+
+    volumes:
+      - gateway:/root/.duranc:rw
+      - motion:/root/.motion:rw
+      # /persistent holds the seeded MediaMTX.yml, the gateway logs that /tmp/logs points
+      # at, and Workflow.env. Without this mount they land in the container layer and are
+      # lost on every watchtower recreate, and MediaMTX crash-loops on a missing config.
+      - gateway:/persistent:rw
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+      com.centurylinklabs.watchtower.scope: "duranc-gw"
+
+  autoupdater:
+    image: containrrr/watchtower:latest
+    container_name: duranc_autoupdater
+    restart: unless-stopped
+    command:
+      # Scoped to the label above, so watchtower only ever touches the gateway and never
+      # anything else a customer happens to run on the same board.
+      - --scope=duranc-gw
+      # Nightly at midnight, 15 minutes after the cron reboot -- a camera gateway must not
+      # be recreated in the middle of a working day.
+      - "--schedule=0 0 0 * * *"
+      - --cleanup
+      - --include-restarting
+    environment:
+      WATCHTOWER_SCOPE: duranc-gw
+      DOCKER_CONFIG: /
+      # containrrr/watchtower is abandoned and defaults its Docker client to API 1.25,
+      # which Docker Engine 25+/29 rejects (min 1.40). Force a supported version, or
+      # watchtower restart-loops with "client version 1.25 is too old".
+      DOCKER_API_VERSION: "1.40"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Explicit path, not "~/.docker/...": the installer runs "docker login" under sudo,
+      # so the credentials are written here. A "~" in this position does not expand to
+      # root's home the way it reads, and a dangling mount silently stops every update.
+      - /root/.docker/config.json:/config.json:ro
+      # The schedule above is a cron spec evaluated INSIDE this container, and the
+      # nightly reboot it is meant to follow ("45 23 * * *", written to the root
+      # crontab by duranc_gw_rasp_pi.sh) is host-local. With no zone in the container
+      # Go falls back to UTC, so on an IST board "midnight" fired at 05:30 local -
+      # 5h45m after the reboot, not the 15 minutes above. Following the host keeps
+      # that pairing true wherever the board is installed, without naming a zone.
+      - /etc/localtime:/etc/localtime:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  gateway:
+    name: stg-gw-files
+    external: true
+  motion:
+    name: stg-motion-files
+    external: true

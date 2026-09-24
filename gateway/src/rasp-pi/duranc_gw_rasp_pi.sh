@@ -20,6 +20,7 @@
 #   DURANC_GW_MODE=nas duranc_gw_rasp_pi.sh.x
 #
 #   staging  durancai/staging-gateway-rasp-pi:latest     + docker volumes
+#   demo     durancai/demo-gateway-rasp-pi:latest        + docker volumes
 #   prod     durancai/production-gateway-rasp-pi:latest  + docker volumes
 #   nas      durancai/production-gateway-rasp-pi:latest  + /local-storage bind mounts
 #
@@ -77,9 +78,10 @@ run_step() {
 
 case "$MODE" in
     staging) COMPOSE_SRC="doc-comp-gw-rasp-pi.yml"      ;;
+    demo)    COMPOSE_SRC="doc-comp-gw-rasp-pi-demo.yml" ;;
     prod)    COMPOSE_SRC="doc-comp-gw-rasp-pi-prod.yml" ;;
     nas)     COMPOSE_SRC="doc-comp-gw-rasp-pi-nas.yml"  ;;
-    *)       fail "unknown mode '$MODE' (expected staging, prod or nas)" ;;
+    *)       fail "unknown mode '$MODE' (expected staging, demo, prod or nas)" ;;
 esac
 COMPOSE_FILE="$HOME/.dur-gw-rasp-pi.yml"
 

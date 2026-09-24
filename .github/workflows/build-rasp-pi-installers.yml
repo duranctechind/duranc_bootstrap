@@ -111,10 +111,11 @@ jobs:
                 echo "built build/${name}.sh.x  (aarch64, needs glibc <= ${need})"
               }
 
-              # One source, three drop-in filenames. The mode is still overridable per run
+              # One source, four drop-in filenames. The mode is still overridable per run
               # (argument or DURANC_GW_MODE); these only differ in the baked-in default, so
               # there is a single script to maintain.
               compile gateway/src/rasp-pi/duranc_gw_rasp_pi.sh duranc_gw_rasp_pi      staging
+              compile gateway/src/rasp-pi/duranc_gw_rasp_pi.sh duranc_gw_rasp_pi_demo demo
               compile gateway/src/rasp-pi/duranc_gw_rasp_pi.sh duranc_gw_rasp_pi_prod prod
               compile gateway/src/rasp-pi/duranc_gw_rasp_pi.sh duranc_gw_rasp_pi_nas  nas
 
@@ -153,5 +154,5 @@ jobs:
 
       - name: Done
         run: |
-          echo "✅ gateway/duranc_gw_rasp_pi{,_prod,_nas}.sh.x, delayedstart_rasp_pi.sh.x and"
+          echo "✅ gateway/duranc_gw_rasp_pi{,_demo,_prod,_nas}.sh.x, delayedstart_rasp_pi.sh.x and"
           echo "   doc_container_status_rasp_pi.sh.x rebuilt for aarch64 (Pi 4 and Pi 5)."
