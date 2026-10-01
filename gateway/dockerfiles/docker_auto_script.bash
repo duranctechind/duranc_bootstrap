@@ -16,7 +16,7 @@ fi
 
 #Download Nginx file for docker
 mkdir $HOME/nginx
-wget -O $HOME/nginx/nginx.tmpl https://raw.githubusercontent.com/DurancOy/duranc_bootstrap/master/gateway/dockerfiles/nginx/nginx.tmpl
+wget -O $HOME/nginx/nginx.tmpl https://raw.githubusercontent.com/duranctechind/duranc_bootstrap/master/gateway/dockerfiles/nginx/nginx.tmpl
 
 #Create docker network and volumes for persistent storage
 docker network create duranc-network --subnet "18.19.0.0/16"

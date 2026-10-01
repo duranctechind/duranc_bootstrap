@@ -7,7 +7,7 @@ docker volume create edge-ai-gw-files
 docker volume create edge-ai-motion-files
 
 REM Download docker compose file
-curl -o C:/Users/%USERNAME%/docker-compose-edge-ai-trial-gw-win.yml https://raw.githubusercontent.com/DurancOy/duranc_bootstrap/master/gateway/docker-compose-edge-ai-trial-gw-win.yml
+curl -o C:/Users/%USERNAME%/docker-compose-edge-ai-trial-gw-win.yml https://raw.githubusercontent.com/duranctechind/duranc_bootstrap/master/gateway/docker-compose-edge-ai-trial-gw-win.yml
 
 REM Build docker containers
 docker-compose -f C:/Users/%USERNAME%/docker-compose-edge-ai-trial-gw-win.yml up -d

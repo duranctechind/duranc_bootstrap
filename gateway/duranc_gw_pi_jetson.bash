@@ -14,7 +14,7 @@ docker volume create gw-files
 docker volume create motion-files
 
 #Download docker compose file
-wget -O $HOME/gwpijetson.yml https://raw.githubusercontent.com/DurancOy/duranc_bootstrap/master/gateway/docker-compose-gateway-pi-jetson.yml
+wget -O $HOME/gwpijetson.yml https://raw.githubusercontent.com/duranctechind/duranc_bootstrap/master/gateway/docker-compose-gateway-pi-jetson.yml
 
 # Build docker containers
 docker-compose -f $HOME/gwpijetson.yml up -d

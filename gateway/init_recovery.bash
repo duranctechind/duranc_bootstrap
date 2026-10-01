@@ -11,10 +11,10 @@ if [ ! -d "$DIRECTORY" ]; then
 	sudo apt-get -y install libavformat-dev libavcodec-dev libavutil-dev unzip g++ wget make nasm zlib1g-dev
 
 	# download and extract
-	wget -O $HOME/.recovery/master.zip https://raw.githubusercontent.com/DurancOy/duranc_bootstrap/master/gateway/untrunc/master.zip
+	wget -O $HOME/.recovery/master.zip https://raw.githubusercontent.com/duranctechind/duranc_bootstrap/master/gateway/untrunc/master.zip
 	unzip master.zip
 	cd $HOME/.recovery/untrunc-master
-	wget -O $HOME/.recovery/untrunc-master/v12.3.zip https://raw.githubusercontent.com/DurancOy/duranc_bootstrap/master/gateway/untrunc/libav/v12.3.zip
+	wget -O $HOME/.recovery/untrunc-master/v12.3.zip https://raw.githubusercontent.com/duranctechind/duranc_bootstrap/master/gateway/untrunc/libav/v12.3.zip
 	unzip $HOME/.recovery/untrunc-master/v12.3.zip
 
 	# build libav

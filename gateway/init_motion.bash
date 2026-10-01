@@ -288,7 +288,7 @@ else
     echo 'Node and NPM Already Installed....'
 fi
 #local rtsp server install/update
-#wget -O - https://github.com/DurancOy/duranc_bootstrap/raw/master/gateway/mediamtx/mediamtx_update.bash|bash
+#wget -O - https://github.com/duranctechind/duranc_bootstrap/raw/master/gateway/mediamtx/mediamtx_update.bash|bash
 # This has given problems many times: should be in the default path, but many times, is not
 # Enable it right now
 export PATH=$PATH:$HOME/.local/bin

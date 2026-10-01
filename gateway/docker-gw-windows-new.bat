@@ -9,7 +9,7 @@ docker volume create --name=stg-gw-files
 docker volume create --name=stg-motion-files
 
 ::Download docker compose file
-curl -o C:/Users/%USERNAME%/docker-compose-gateway-windows.yml https://raw.githubusercontent.com/DurancOy/duranc_bootstrap/master/gateway/docker-compose-gateway-windows.yml
+curl -o C:/Users/%USERNAME%/docker-compose-gateway-windows.yml https://raw.githubusercontent.com/duranctechind/duranc_bootstrap/master/gateway/docker-compose-gateway-windows.yml
 
 ::Build docker containers
 docker-compose -f C:/Users/%USERNAME%/docker-compose-gateway-windows.yml up -d

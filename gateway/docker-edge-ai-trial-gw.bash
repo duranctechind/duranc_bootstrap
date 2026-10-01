@@ -13,7 +13,7 @@ docker volume create edge-ai-gw-files
 docker volume create edge-ai-motion-files
 
 #Download docker compose file
-wget -O $HOME/edgeAItrialGWlinux.yml https://raw.githubusercontent.com/DurancOy/duranc_bootstrap/master/gateway/docker-compose-edge-ai-trial-gw-linux.yml
+wget -O $HOME/edgeAItrialGWlinux.yml https://raw.githubusercontent.com/duranctechind/duranc_bootstrap/master/gateway/docker-compose-edge-ai-trial-gw-linux.yml
 
 # Build docker containers
 docker-compose -f $HOME/edgeAItrialGWlinux.yml up -d
