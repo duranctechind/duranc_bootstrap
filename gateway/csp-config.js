@@ -1,126 +1,124 @@
-//EDIT IP ADDRESS IF NECESSARY
-const portal = "http://18.18.18.17 http://18.18.19.30:8000";
-const portal_host = "18.18.18.17";
-const messenger = "http://18.18.18.17:81";
-const ws_messenger= "ws://18.18.18.17:81";
-const notifier = "http://18.18.18.17:83";
-const streamer = "http://18.18.18.17:82";
-const ws_streamer = "ws://18.18.18.17:82";
-const mediamtx_streamer = "http://18.18.18.17:8888";
-const rtmp_streamer = "http://18.18.18.17:8888"
-const vllm_host = "http://18.18.19.30:8000"
-// Allowed domains: every address a browser opens THIS portal on (add a hostname or a
-// second IP here if operators use one). Never the LLM host above.
-// portal_origins - CORS allow-list, scheme://host[:port], echoed one at a time
-const portal_origins = ["http://18.18.18.17"];
-// portal_hosts - Host headers that get the nonce-based script policy
-const portal_hosts = ["18.18.18.17"];
-//STOP EDITING
+// Content-Security-Policy and allowed domains for the portal. Template = 18.18.18.5's live file
+// (2026-11-25; stg's layout, owner: one csp-config for every environment). The installer's next-steps
+// writes it for THIS box's IP - every http(s)/ws://<ip> and every quoted "<ip>" is rewritten - with no
+// download, so it also works with no internet. Lives at /persistent/csp-config.js, a docker VOLUME: a CI
+// rebuild does not update it. STQC: every directive once, every source once per directive (src()
+// de-duplicates), no colon after a directive name, no key ever undefined.
 
-//DO NOT EDIT BELOW CONTENT
+// ---- endpoints ----
+const portal = "http://18.18.18.5 https://devllm.duranc.com/api/generate";
+const portal_host = "18.18.18.5";
+const messenger = "http://18.18.18.5:81";
+const ws_messenger = "ws://18.18.18.5:81";
+const notifier = "http://18.18.18.5:83";
+const streamer = "http://18.18.18.5:82";
+const ws_streamer = "ws://18.18.18.5:82";
+const mediamtx_streamer = "http://18.18.18.5:8888";
+const vllm_host = "https://devllm.duranc.com/api/generate";
+const rtmp_streamer = "http://18.18.18.5:8888";
+const extra_frame = "";
+
+// every source once per directive, whatever the endpoints above share
+const src = (...parts) => [...new Set(parts.join(' ').split(/\s+/).filter(Boolean))].join(' ');
+const arr = (...parts) => src(...parts).split(' ');
+
+// ---- allowed domains ----
+// Origins a browser loads the portal from: the CORS allow-list (index.js, and the messenger's
+// ALLOWED_ORIGINS via environment.js). Scheme included - an Origin header always carries it. Never the
+// LLM hosts (vllm_host, rtmp_streamer). Keep in step with logos_map.
+const portal_origins = [
+   "http://18.18.18.5"
+];
+// Host headers that get the nonce-based script policy.
+const portal_hosts = [
+   "18.18.18.5"
+];
+
+const PAYPAL_FRAME = "'self' about: https://www.sandbox.paypal.com https://www.paypal.com https://*.paypal.com";
+const IMG = "'self' data: blob: https://www.paypalobjects.com https://t.paypal.com https://maps.googleapis.com https://maps.gstatic.com https://optimizationguide-pa.googleapis.com";
+const FONT = src("'self' data: https://optimizationguide-pa.googleapis.com");
+const STYLE = src("'self' 'unsafe-inline' https://optimizationguide-pa.googleapis.com https://vjs.zencdn.net https://cdn.jsdelivr.net");
+const SCRIPT = src("'self' 'unsafe-eval' https://www.paypalobjects.com https://www.paypal.com https://*.paypal.com https://maps.googleapis.com https://maps.gstatic.com https://optimizationguide-pa.googleapis.com https://cdn.jsdelivr.net");
+
 module.exports = {
    portal: portal,
    portal_host: portal_host,
    portal_hosts: portal_hosts,
    portal_origins: portal_origins,
    // branding per portal host (images/<file>); unlisted hosts get duranc.png
-   logos_map: { "18.18.18.17": "duranc.png" },
+   logos_map: {
+      "18.18.18.5": "duranc.png"
+   },
    accessControlOrigin: [portal, streamer],
+
+   // ---- legacy array form (kept for any reader of the top-level keys) ----
    defaultSrc: ["'self'"],
-   frameSrc: ["'self'", "https://www.sandbox.paypal.com", "https://www.paypal.com", streamer, rtmp_streamer],
-   imgSrc: ["'self'", "data:", "blob:", "https://www.paypalobjects.com", "https://t.paypal.com", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://optimizationguide-pa.googleapis.com"],
-   mediaSrc: ["'self'", "data:", "blob:", messenger, streamer, ws_messenger, ws_streamer, rtmp_streamer],
-   fontSrc: ["'self'", "data:","https://fonts.gstatic.com", "https://optimizationguide-pa.googleapis.com"],
-   styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://optimizationguide-pa.googleapis.com","https://vjs.zencdn.net", "https://cdn.jsdelivr.net"],
-   scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://www.paypalobjects.com", "https://www.paypal.com", "https://*.paypal.com", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://optimizationguide-pa.googleapis.com", "https://cdn.jsdelivr.net"],
-   //scriptSrc: ["'self'", "'unsafe-inline'", "https://maps.googleapis.com", "https://maps.gstatic.com"],
-   connectSrc: ["'self'", "data:", "blob:", "https://www.sandbox.paypal.com", "https://www.paypalobjects.com", "https://www.paypal.com", "https://api.paypal.com",  "https://maps.googleapis.com", messenger, streamer, ws_messenger, ws_streamer, notifier,mediamtx_streamer, vllm_host, rtmp_streamer],
-   //scriptSrcAttr: ["'self'", "'unsafe-inline'"],
+   frameSrc: arr("'self' https://www.sandbox.paypal.com https://www.paypal.com", extra_frame, streamer, rtmp_streamer),
+   imgSrc: arr(IMG),
+   mediaSrc: arr("'self' data: blob:", messenger, streamer, ws_messenger, ws_streamer, rtmp_streamer),
+   fontSrc: arr(FONT),
+   styleSrc: arr(STYLE),
+   scriptSrc: arr(SCRIPT),
+   connectSrc: arr("'self' data: blob: https://www.sandbox.paypal.com https://www.paypalobjects.com https://www.paypal.com https://api.paypal.com https://maps.googleapis.com", messenger, streamer, ws_messenger, ws_streamer, notifier, mediamtx_streamer, vllm_host, rtmp_streamer),
    scriptSrcAttr: ["'self'", "'unsafe-inline'"],
    formAction: ["'self'"],
-   frameAncestors:["'self'"],
+   frameAncestors: ["'self'"],
    manifestSrc: ["'self'"],
    baseUri: ["'self'"],
+   workerSrc: ["'self'"],
 
-   // cspOptions: {
-   //    defaultSrc: "'self'",
-   //    frameSrc: "'self' https://www.sandbox.paypal.com https://www.paypal.com" + " " + streamer ,
-   //    imgSrc: "'self' data: blob: https://www.paypalobjects.com https://t.paypal.com https://maps.googleapis.com https://maps.gstatic.com https://optimizationguide-pa.googleapis.com",
-   //    mediaSrc: "'self' data: blob:" + " "  + messenger + " " +  streamer +" " + ws_messenger + " " + ws_streamer,
-   //    fontSrc: "'self' data: https://fonts.gstatic.com https://optimizationguide-pa.googleapis.com",
-   //    connectSrc: "'self' data: blob:  https://www.sandbox.paypal.com https://www.paypalobjects.com https://www.paypal.com https://api.paypal.com https://maps.googleapis.com" + " " + messenger + " "+ streamer + " " + ws_messenger + " " + ws_streamer + " " + notifier + " " + mediamtx_streamer + " " + vllm_host,
-   //    scriptSrcAttr: "'self' 'unsafe-inline'",
-   //    formAction: "'self'",
-   //    frameAncestors: "'self'",
-   //    //frameAncestors: "'self' https://www.sandbox.paypal.com" +" " + streamer ,
-   //    objectSrc: "'none'",
-   //    styleSrc: "'self' 'unsafe-inline' https://fonts.googleapis.com https://optimizationguide-pa.googleapis.com https://vjs.zencdn.net https://cdn.jsdelivr.net",
-   //    scriptSrc: "'self' 'unsafe-inline' 'unsafe-eval' https://www.paypalobjects.com https://www.paypal.com https://*.paypal.com https://maps.googleapis.com https://maps.gstatic.com https://optimizationguide-pa.googleapis.com https://cdn.jsdelivr.net",
-   //    manifestSrc: "'self'",
-   //    baseUri: "'self'"
-
-   // },
+   // ---- pages (index.js; script-src gets the nonce, or 'unsafe-inline' off the portal hosts) ----
    cspOptions: {
       defaultSrc: "'self'",
-      frameSrc: "'self' about: https://www.sandbox.paypal.com https://www.paypal.com https://*.paypal.com " + streamer + " " + rtmp_streamer,
-      imgSrc: "'self' data: blob: https://www.paypalobjects.com https://t.paypal.com https://maps.googleapis.com https://maps.gstatic.com https://optimizationguide-pa.googleapis.com",
-      mediaSrc: "'self' data: blob:" + " " + messenger + " " + streamer + " " + ws_messenger + " " + ws_streamer + " " + mediamtx_streamer + " " + rtmp_streamer,
-      fontSrc: "'self' data: https://fonts.gstatic.com https://optimizationguide-pa.googleapis.com",
-      connectSrc: "'self' data: blob: https://*.paypal.com https://www.paypalobjects.com https://maps.googleapis.com " + messenger + " " + streamer + " " + ws_messenger + " " + ws_streamer + " " + notifier + " " + mediamtx_streamer + " " + vllm_host + " " + rtmp_streamer,
+      frameSrc: src(PAYPAL_FRAME, extra_frame, streamer, mediamtx_streamer, rtmp_streamer),
+      imgSrc: IMG,
+      mediaSrc: src("'self' data: blob:", messenger, streamer, ws_messenger, ws_streamer, mediamtx_streamer, rtmp_streamer),
+      fontSrc: FONT,
+      connectSrc: src("'self' data: blob: https://*.paypal.com https://www.paypalobjects.com https://maps.googleapis.com", messenger, streamer, ws_messenger, ws_streamer, notifier, mediamtx_streamer, vllm_host, rtmp_streamer),
       scriptSrcAttr: "'self' 'unsafe-inline'",
       formAction: "'self'",
       frameAncestors: "'self'",
       objectSrc: "'none'",
-      styleSrc: "'self' 'unsafe-inline' https://fonts.googleapis.com https://optimizationguide-pa.googleapis.com https://vjs.zencdn.net https://cdn.jsdelivr.net",
-      scriptSrc: "'self' 'unsafe-eval' https://www.paypalobjects.com https://www.paypal.com https://*.paypal.com https://maps.googleapis.com https://maps.gstatic.com https://optimizationguide-pa.googleapis.com https://cdn.jsdelivr.net",
+      styleSrc: STYLE,
+      scriptSrc: SCRIPT,
       manifestSrc: "'self'",
       baseUri: "'self'",
-      // Must never be absent: index.js emits "worker-src " + workerSrc, and a missing
-      // key ships the literal "undefined", which blocks every Worker (STQC).
+      // index.js emits "worker-src " + workerSrc unconditionally: never leave it out
       workerSrc: "'self' blob:"
    },
 
+   // ---- static files served by express.static ----
    cspOptionsStr:
-      "default-src 'self'; " + // Only load resources from the same origin
-      "frame-src 'self' https://www.sandbox.paypal.com https://www.paypal.com" + " " + streamer + " " + rtmp_streamer + ";" +
-      "img-src 'self' data: blob: https://www.paypalobjects.com https://t.paypal.com https://maps.googleapis.com https://maps.gstatic.com https://optimizationguide-pa.googleapis.com" +  ";" +
-      "media-src 'self' data: blob: " + " " +  messenger + " " + streamer + " " + ws_messenger + " " + ws_streamer +  " " + mediamtx_streamer + " " + rtmp_streamer + ";" +
-      "font-src 'self'  data: https://fonts.gstatic.com https://optimizationguide-pa.googleapis.com" +  ";" +
-      "connect-src 'self' data: blob: https://www.sandbox.paypal.com https://www.paypalobjects.com https://www.paypal.com https://api.paypal.com https://maps.googleapis.com" + " " + messenger + " " + streamer + " " + ws_messenger + " " + ws_streamer + " " + notifier + " " + mediamtx_streamer + " " + rtmp_streamer +  ";" +
-      "script-src-attr 'self' 'unsafe-inline'" +  ";" +
-      "form-action 'self';" + 
-      //"frame-ancestors: 'self' https://www.sandbox.paypal.com " + " " + streamer + ";" +
-      "frame-ancestors 'self';" +
-      "object-src 'none';" +
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://optimizationguide-pa.googleapis.com https://vjs.zencdn.net https://cdn.jsdelivr.net" +  ";" +
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.paypalobjects.com https://www.paypal.com  https://*.paypal.com https://maps.googleapis.com https://maps.gstatic.com https://optimizationguide-pa.googleapis.com https://cdn.jsdelivr.net" +  ";" +
-      "manifest-src 'self';" +
-      "worker-src 'self' blob:;" +
+      "default-src 'self'; " +
+      "frame-src " + src("'self' https://www.sandbox.paypal.com https://www.paypal.com", extra_frame, streamer, rtmp_streamer) + "; " +
+      "img-src " + IMG + "; " +
+      "media-src " + src("'self' data: blob:", messenger, streamer, ws_messenger, ws_streamer, mediamtx_streamer, rtmp_streamer) + "; " +
+      "font-src " + FONT + "; " +
+      "connect-src " + src("'self' data: blob: https://www.sandbox.paypal.com https://www.paypalobjects.com https://www.paypal.com https://api.paypal.com https://maps.googleapis.com", messenger, streamer, ws_messenger, ws_streamer, notifier, mediamtx_streamer, rtmp_streamer) + "; " +
+      "script-src-attr 'self' 'unsafe-inline'; " +
+      "form-action 'self'; " +
+      "frame-ancestors 'self'; " +
+      "object-src 'none'; " +
+      "style-src " + STYLE + "; " +
+      "script-src " + src("'self' 'unsafe-inline'", SCRIPT) + "; " +
+      "manifest-src 'self'; " +
+      "worker-src 'self' blob:; " +
       "base-uri 'self';",
 
+   // ---- not-found page (index.js catch-all app.get('*')) ----
    staticOptions:
-      "default-src 'self'; " + // Only load resources from the same origin
-      "script-src 'self'; " +  // Only allow scripts from the same origin
-      "style-src 'self'; " +   // Only allow styles from the same origin
-      "img-src 'self'; " +     // Only allow images from the same origin
-      "connect-src 'self'; " + // Only allow XHR requests to the same origin
-      "font-src 'self'; " +    // Only allow fonts from the same origin
-      "object-src 'none'; " +  // Disallow <object>, <embed>, <applet>
-      "frame-src 'none'; " +   // Disallow embedding in iframes
+      "default-src 'self'; " +
+      "script-src 'self'; " +
+      "style-src 'self'; " +
+      "img-src 'self'; " +
+      "connect-src 'self'; " +
+      "font-src 'self'; " +
+      "object-src 'none'; " +
+      "frame-src 'none'; " +
       "form-action 'self'; " +
-      "frame-ancestors 'none';" +
-      "media-src 'self';" +
-      "manifest-src 'self';" +
-      "base-uri 'self';"
+      "frame-ancestors 'none'; " +
+      "media-src 'self'; " +
+      "manifest-src 'self'; " +
+      "base-uri 'self'; " +
+      "worker-src 'self';"
 };
-
-// Each source once per directive (STQC: no duplicate source expressions). Several
-// of the URLs above are often the same (mediamtx_streamer and rtmp_streamer here).
-(function dedupeSources(c) {
-   // arrays too: an operator may write a value in the array style used at the top
-   const uniq = function (d) { return Array.from(new Set([].concat(d).join(' ').trim().split(/\s+/))).join(' '); };
-   Object.keys(c.cspOptions).forEach(function (k) { c.cspOptions[k] = uniq(c.cspOptions[k]); });
-   ['cspOptionsStr', 'staticOptions'].forEach(function (k) {
-      c[k] = c[k].split(';').map(function (d) { return d.trim(); }).filter(Boolean).map(uniq).join('; ') + ';';
-   });
-})(module.exports);
