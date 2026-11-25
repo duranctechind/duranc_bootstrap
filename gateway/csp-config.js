@@ -1,3 +1,4 @@
+// Server addresses - set by next-steps to this server's IP. Edit only if the IP or domain changes.
 const portal = "http://18.18.18.5 https://devllm.duranc.com/api/generate";
 const portal_host = "18.18.18.5";
 const messenger = "http://18.18.18.5:81";
@@ -10,16 +11,20 @@ const vllm_host = "https://devllm.duranc.com/api/generate";
 const rtmp_streamer = "http://18.18.18.5:8888";
 const extra_frame = "";
 
+// Helpers - do not edit
 const src = (...parts) => [...new Set(parts.join(' ').split(/\s+/).filter(Boolean))].join(' ');
 const arr = (...parts) => src(...parts).split(' ');
 
+// Addresses users open the portal on (scheme://host). Add a domain here if one is used.
 const portal_origins = [
    "http://18.18.18.5"
 ];
+// Same addresses without the scheme.
 const portal_hosts = [
    "18.18.18.5"
 ];
 
+// Allowed external sources - do not edit
 const PAYPAL_FRAME = "'self' about: https://www.sandbox.paypal.com https://www.paypal.com https://*.paypal.com";
 const IMG = "'self' data: blob: https://www.paypalobjects.com https://t.paypal.com https://maps.googleapis.com https://maps.gstatic.com https://optimizationguide-pa.googleapis.com";
 const FONT = src("'self' data: https://optimizationguide-pa.googleapis.com");
@@ -31,9 +36,11 @@ module.exports = {
    portal_host: portal_host,
    portal_hosts: portal_hosts,
    portal_origins: portal_origins,
+   // Logo per portal address (file in images/)
    logos_map: {
       "18.18.18.5": "duranc.png"
    },
+   // ---- Do not edit below this line ----
    accessControlOrigin: [portal, streamer],
 
    defaultSrc: ["'self'"],
