@@ -1,10 +1,3 @@
-// Content-Security-Policy and allowed domains for the portal. Template = 18.18.18.5's live file
-// (2026-11-25; stg's layout, owner: one csp-config for every environment). The installer's next-steps
-// writes it for THIS box's IP - every http(s)/ws://<ip> and every quoted "<ip>" is rewritten - with no
-// download, so it also works with no internet. Lives at /persistent/csp-config.js, a docker VOLUME: a CI
-// rebuild does not update it. STQC: every directive once, every source once per directive (src()
-// de-duplicates), no colon after a directive name, no key ever undefined.
-
 // ---- endpoints ----
 const portal = "http://18.18.18.5 https://devllm.duranc.com/api/generate";
 const portal_host = "18.18.18.5";
