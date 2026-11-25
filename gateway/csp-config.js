@@ -1,4 +1,3 @@
-// ---- endpoints ----
 const portal = "http://18.18.18.5 https://devllm.duranc.com/api/generate";
 const portal_host = "18.18.18.5";
 const messenger = "http://18.18.18.5:81";
@@ -11,18 +10,12 @@ const vllm_host = "https://devllm.duranc.com/api/generate";
 const rtmp_streamer = "http://18.18.18.5:8888";
 const extra_frame = "";
 
-// every source once per directive, whatever the endpoints above share
 const src = (...parts) => [...new Set(parts.join(' ').split(/\s+/).filter(Boolean))].join(' ');
 const arr = (...parts) => src(...parts).split(' ');
 
-// ---- allowed domains ----
-// Origins a browser loads the portal from: the CORS allow-list (index.js, and the messenger's
-// ALLOWED_ORIGINS via environment.js). Scheme included - an Origin header always carries it. Never the
-// LLM hosts (vllm_host, rtmp_streamer). Keep in step with logos_map.
 const portal_origins = [
    "http://18.18.18.5"
 ];
-// Host headers that get the nonce-based script policy.
 const portal_hosts = [
    "18.18.18.5"
 ];
@@ -38,13 +31,11 @@ module.exports = {
    portal_host: portal_host,
    portal_hosts: portal_hosts,
    portal_origins: portal_origins,
-   // branding per portal host (images/<file>); unlisted hosts get duranc.png
    logos_map: {
       "18.18.18.5": "duranc.png"
    },
    accessControlOrigin: [portal, streamer],
 
-   // ---- legacy array form (kept for any reader of the top-level keys) ----
    defaultSrc: ["'self'"],
    frameSrc: arr("'self' https://www.sandbox.paypal.com https://www.paypal.com", extra_frame, streamer, rtmp_streamer),
    imgSrc: arr(IMG),
@@ -60,7 +51,6 @@ module.exports = {
    baseUri: ["'self'"],
    workerSrc: ["'self'"],
 
-   // ---- pages (index.js; script-src gets the nonce, or 'unsafe-inline' off the portal hosts) ----
    cspOptions: {
       defaultSrc: "'self'",
       frameSrc: src(PAYPAL_FRAME, extra_frame, streamer, mediamtx_streamer, rtmp_streamer),
@@ -76,11 +66,9 @@ module.exports = {
       scriptSrc: SCRIPT,
       manifestSrc: "'self'",
       baseUri: "'self'",
-      // index.js emits "worker-src " + workerSrc unconditionally: never leave it out
       workerSrc: "'self' blob:"
    },
 
-   // ---- static files served by express.static ----
    cspOptionsStr:
       "default-src 'self'; " +
       "frame-src " + src("'self' https://www.sandbox.paypal.com https://www.paypal.com", extra_frame, streamer, rtmp_streamer) + "; " +
@@ -98,7 +86,6 @@ module.exports = {
       "worker-src 'self' blob:; " +
       "base-uri 'self';",
 
-   // ---- not-found page (index.js catch-all app.get('*')) ----
    staticOptions:
       "default-src 'self'; " +
       "script-src 'self'; " +
